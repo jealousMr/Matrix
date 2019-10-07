@@ -7,7 +7,7 @@
 ---
 ## 模块一（基础优化,one.c文件）
 0. 初始化过程
-![blockchain](https://github.com/jealousMr/Matrix/tree/master/img/base.png)
+![blockchain](./img/base.png)
 1. 未优化模型
 ![blockchain](https://github.com/jealousMr/Matrix/tree/master/img/no_change.png)
 **此模型未进行任何友好优化，在intel编译器下使用Od参数禁用编译器优化后进行编译，得到结果为time：307.130000秒的巨长时间**
