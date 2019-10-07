@@ -7,26 +7,26 @@
 ---
 ## 模块一（基础优化,one.c文件）
 0. 初始化过程
-![blockchain](./base.png)
+![blockchain](https://github.com/jealousMr/Matrix/tree/master/img/base.png)
 1. 未优化模型
-![blockchain](./no_change.png)
+![blockchain](https://github.com/jealousMr/Matrix/tree/master/img/no_change.png)
 **此模型未进行任何友好优化，在intel编译器下使用Od参数禁用编译器优化后进行编译，得到结果为time：307.130000秒的巨长时间**
 2. 稍微提高cache命中率优化
-![blockchain](./base_little_change.png)
+![blockchain](https://github.com/jealousMr/Matrix/tree/master/img/base_little_change.png)
 **仔细观察这份代码的改变，对于之前的那份而言，B数组按照列访问改为按照行访问在此提高了cache命中率，但是对于数组A而言之前的按行访问变为按列访问，在此减小了命中率，不过把A从最内层循环提出来也大大减少对A的访存，相对命中率来说是一种折衷。在intel编译器下使用Od参数禁用编译器优化后进行编译，得到结果为time：32.210000秒，OK 提升了几乎10倍，继续...**
 3. 流行的分块思想，在对cache命中率进行提高
-![blockchain](./base_lot_change.png)
+![blockchain](https://github.com/jealousMr/Matrix/tree/master/img/base_lot_change.png)
 **更多的循环，更正代码画图即理解，此优化对bsize的选取要求很高，若大了则导致分块大，达不到提高cache命中率的目的，若小了注意会发送伪共享问题，更具测试数据量此处选取16比较合适，最终time=30.210000秒，OKOK，提高几乎不计，可能是数据量导致优化效果差，可以适当提高N尝试。**
 4. 通过转置进行提高命中率
-![blockchain](./base_turn.png)
+![blockchain](https://github.com/jealousMr/Matrix/tree/master/img/base_turn.png)
 **转置后的矩阵B，以及之前的A都是按照行进行访问，对cache是友好的，不过对于转置的过程是有巨大开销的，此处未对矩阵转置进行任何的优化，在经过转置优化后性能会得到提升，不过此处的热点依然是矩阵的乘法，测试time=36.139000秒。**
 #### 到目前为止，常见的优化就结束了，以上几种优化表现好的可以达到10倍的性能提升，不过，继续...
 ## 模块二（以如AVX指令集，细粒度并行）
 1. 对转置矩阵进行AVX优化
-![blockchain](./height_base_turn.png)
+![blockchain](https://github.com/jealousMr/Matrix/tree/master/img/height_base_turn.png)
 **矩阵转置后按照行进行访问，所以天然适合向量形式运算，把焦点集中在内层for循环，t1每次加载A矩阵4个double元素，t2加载B，类加乘的结果放在sum中，其中sum是含有4个元素的向量，为此最终结果需要在进行累加，当变量为float时可以用注释掉的3条指令代替list数组的累加，现在为double的指令还未找到，接下来的for处理剩余元素。OK 测试time：19.754000秒，到此提升300/20=15倍左右了**
 2. 对分块矩阵使用AVX指令进行优化
-![blockchain](./height_lot_change.png)
+![blockchain](https://github.com/jealousMr/Matrix/tree/master/img/height_lot_change.png)
 **实现思想可以参考上一个版本的改编，看看time：22.709000秒，同级别下相差不大，同样可以达到原版本的15倍提升。**
 #### OK now 我们已经在原来基础上提高了15倍，看看所做的工作，在模块二的所有提升中为了实现向量化都需要对矩阵进行转置，而对于转置的过程并未进行优化，此处有提升的空间。接下来就是优化的方向选取，一是进行粗粒度的并行优化，再者就是继续对访存进行深度优化，在进行粗粒度并行，为了有更大的提高空间，我继续在模块一的基础上优化访存。
 ## 模块三 （深度了解访存，最大限度使用寄存器）
@@ -34,20 +34,20 @@
 
 - 数据打包
 根据硬件平台16个寄存器，可以分解为4x4的方式进行矩阵相乘。为此考虑对矩阵B的列进行打包，每次四列，每列长度为N的形式得到一个package二维数组（这样打包的形式是考虑到对数组B的访问将按照列访问转为行访问），最后使用package与数组A的四行进行相乘即可得到结果C矩阵（此处循环N/4次，注意最后剩余结果的处理）。这种对方正B的打包方式如下图：
-![blockchain](./package1.png)
+![blockchain](https://github.com/jealousMr/Matrix/tree/master/img/package1.png)
 
 - 主体代码
 此部分比较难以理解的是内部循环对deal函数的调用，之前说过对B进行数据提取到package中，而如何对16个寄存器进行调用则直接体现在deal函数的调用，通过灵活变化参数col（后面会有提到）
-![blockchain](./package2.png)
+![blockchain](https://github.com/jealousMr/Matrix/tree/master/img/package2.png)
 
 - deal函数
 先上代码，在上几张图应该就可以理解
-![blockchain](./package4.png)
-![blockchain](./package3.png)
+![blockchain](https://github.com/jealousMr/Matrix/tree/master/img/package4.png)
+![blockchain](https://github.com/jealousMr/Matrix/tree/master/img/package3.png)
 **对于这巨多的指针不画画图很难理解，首先看几个初始变量：图中各个变量的大体意义已经标注，其中package之前说过是从B矩阵4列4列（j变量）的取出来的**
-![blockchain](./package5.png)
+![blockchain](https://github.com/jealousMr/Matrix/tree/master/img/package5.png)
 **下面这张图解释的是在while循环中各个寄存器t如何进行计算累加乘的过程（此处仅仅展示三个寄存器，其他的类似）**
-![blockchain](./package6.png)
+![blockchain](https://github.com/jealousMr/Matrix/tree/master/img/package6.png)
 **明白了图中的寄存器调用也就明白了如何对方阵C进行赋值。最后回到主体代码中的for循环对deal函数的调用，现在应该很清楚了，其中j=col，i=row，且i，j+=4；在遍历完N长度后乘法也就相应完成了。看看运行时间：time= 9.284000秒！粗略估计一下，提高了300/10=30倍，虽然到此为止代码的可读性差到极致，但获得这种巨大的提升是值得的。**
 
 - 后处理
@@ -86,7 +86,7 @@
         C[col+3][row+3]=t15;
 ```
 此处是对数组C进行写如，仔细看回发现对C进行写的过程中有越界的操作，而那些越界的步骤刚好就是package数组中越界非法步骤计算的出来的结果，所以理论上并不影响最终C的结果。不过这种越界的写操作对程序是一种潜在威胁，若要改进可以对以上两个代码片段加如分支进行判断是否越界，但性能会有所下降。当然还有一种办法对N进行分配，对于N可以整除package.length的部分依然采取如上办法，对于不能整除的部分，为每一部分定制一份deal代码即可，但这样做的后果就直接导致巨大的代码量。
-![blockchain](./package7.png)
+![blockchain](https://github.com/jealousMr/Matrix/tree/master/img/package7.png)
 上图中取： en=（N/4）*4，假设剩余未3的效果图，图中每一次计算C的过程用黄色，红色框出。所以需要为剩余的3定制三分deal代码，每一份采用不同的寄存器。
 **ok现在我们的访存优化似乎到极致了，到此也获得了30倍左右的提升，不过之前使用过的AVX指令集适合对向量操作，而我们的package又可以看做向量的集合，为此继续优化，把cup使用到极致**
 
@@ -96,7 +96,7 @@ __m256d:一个能够存储4个double的向量
 其他avx指令集函数；
 - 数据打包处理package
 为了充分利用向量的运算特点，即一次处理4个数字，为此设计一个专门的package是必要的，此部分像前一部分package构造类似，不过更为复杂，我们使用一个二维数组package来对B矩阵打包，同样按照列来取，不过更具向量的运算一次4个的特征进行构造，下图是我们的构造：
-![blockchain](./package8.png)
+![blockchain](https://github.com/jealousMr/Matrix/tree/master/img/package8.png)
 其对应的主要代码：
 ```
     double *package[2];
@@ -122,9 +122,9 @@ __m256d:一个能够存储4个double的向量
 对于这种构造方式使用两个package的原因是cache足够大（也可以使用一个，甚至多个，你机器厉害），回到package的构造，图中说的已经很清楚了，相比于之前的构造这次对B中每一列中包含4小列（红椭圆）对应于向量运算。对于构造出的package同样和之前的版本一样交给deal函数。
 
 - deal函数
-![blockchain](./package9.png)
+![blockchain](https://github.com/jealousMr/Matrix/tree/master/img/package9.png)
 又是巨长的代码，要理解她还得看看下面得解析图：
-![blockchain](./package10.png)
+![blockchain](https://github.com/jealousMr/Matrix/tree/master/img/package10.png)
 来解释一下上图：首先package[0],package[1]是从B矩阵一列一列的打包打出来的，在来看看几个向量，对于a0来说，它在package[0]中移动，a1类似；对于b0来说它在矩阵A的第一行中运动，首先它取A[0][0]的值赋给向量b0中的4个元素（所以b0中的元素全是一样的），当执行pb0++时，则取A[0][1]的值对b0向量进行赋值；pb1，pb2，pb3类似；接下来我们来看看vec_i向量中存放的值是什么，对于vec_1来说，他是a0，b0及自身累加乘的结果，这里便于理解首先把a0理解为扫描package[0]中的元素按照4个一组执行，b0理解为扫描A矩阵中第一行的每一个元素按照1个一组执行，所以累乘的结果写开（a0[0]*b0,a0[1]*b0,a0[2]*b0,a0[3]*b0）,此处因为b0中4个元素值都一样就简写b0；那么现在就很好理解了，效果就是B中的第一列与A中第一行每一个元素相乘（此处是下标对于元素相乘）并累加的和放在vec_1[0]中，B中的第二列与A中第一行每一个元素相乘（此处是下标对于元素相乘）并累加的和放在vec_1[1]中...为此vec_1中的结果就是C中前四个元素的值。在此就实现了一次计算4个元素的目标，而我们选取的package是2个，所以一次计算C中的元素可以到达8个。最后回到主代码的for循环调用deal函数：
 ```
  for(int col=0;col<N;col+=4)
